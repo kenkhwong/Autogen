@@ -45,4 +45,14 @@ public class PersistentKeyHandler<K extends PersistentKey<T>,T> implements KeyHa
         }
         return nextKey.getKeyValue();
     }
+
+    public <P> KeyHandler<P> postProcess(Function<T,P> postFunction) {
+        return new KeyHandler<P>() {
+            @Override
+            @Transactional
+            public P next() {
+                return postFunction.apply(PersistentKeyHandler.this.next());
+            }
+        };
+    }
 }

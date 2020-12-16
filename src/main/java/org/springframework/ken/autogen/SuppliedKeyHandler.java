@@ -1,6 +1,5 @@
 package org.springframework.ken.autogen;
 
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class SuppliedKeyHandler<T> implements KeyHandler<T> {
@@ -22,9 +21,5 @@ public class SuppliedKeyHandler<T> implements KeyHandler<T> {
     @Override
     public T next() {
         return supplier.get();
-    }
-
-    public <P> KeyHandler<P> postProcess(Function<T,P> postFunction) {
-        return () -> postFunction.apply(this.next());
     }
 }

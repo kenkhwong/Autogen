@@ -1,58 +1,39 @@
 package org.springframework.ken.autogen;
 
-import org.springframework.ken.autogen.jpa.PersistentKey;
-import org.springframework.ken.autogen.jpa.PersistentKeyRepository;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public class PersistentKeyHandler<K extends PersistentKey<T>,T> implements KeyHandler<T> {
+public class PersistentKeyHandler<K,T> implements KeyHandler<T> {
 
-    private final Supplier<K> initKeySupplier;
-    private final PersistentKeyRepository<K> keyRepo;
+    private final JpaRepository<K,?> keyRepo;
+    private final Supplier<K> newKeySupplier;
 
-    private Function<T,T> nextValueFunction;
+    private Function<K,T> process;
 
-    public PersistentKeyHandler(Supplier<K> initKeySupplier, PersistentKeyRepository<K> keyRepo,
-                             Function<T,T> nextValueFunction) {
-        this.initKeySupplier = initKeySupplier;
+    public PersistentKeyHandler(JpaRepository<K, ?> keyRepo, Supplier<K> newKeySupplier, Function<K, T> process) {
         this.keyRepo = keyRepo;
-        this.nextValueFunction = nextValueFunction;
+        this.newKeySupplier = newKeySupplier;
+        this.process = process;
     }
 
-    public Function<T, T> getNextValueFunction() {
-        return nextValueFunction;
+    public Function<K, T> getProcess() {
+        return process;
     }
 
-    public void setNextValueFunction(Function<T, T> f) {
-        this.nextValueFunction = f;
+    public void setProcess(Function<K, T> process) {
+        this.process = process;
     }
 
     @Override
-    @Transactional
+    @Transactional(isolation = Isolation.READ_UNCOMMITTED)
     public T next() {
-        Optional<K> optional = keyRepo.findById(PersistentKey.ONE_ID);
-        K nextKey;
+        K key = keyRepo.save(newKeySupplier.get());
+        keyRepo.delete(key);
 
-        if (optional.isPresent()) {
-            optional.get().setKeyValue(nextValueFunction.apply(optional.get().getKeyValue()));
-            nextKey = keyRepo.save(optional.get());
-
-        } else {
-            nextKey = keyRepo.save(initKeySupplier.get());
-        }
-        return nextKey.getKeyValue();
-    }
-
-    public <P> KeyHandler<P> postProcess(Function<T,P> postFunction) {
-        return new KeyHandler<P>() {
-            @Override
-            @Transactional
-            public P next() {
-                return postFunction.apply(PersistentKeyHandler.this.next());
-            }
-        };
+        return process.apply(key);
     }
 }
